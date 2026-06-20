@@ -7,7 +7,7 @@ import NestExpansionModal from './NestExpansionModal.vue'
 
 const router = useRouter()
 const { startGame, tryLoadGame, state } = useGameState()
-const { currentNestConfig, progress, playerData, activeDecorations } = usePlayerData()
+const { currentNestConfig, unlockedNestConfig, progress, playerData, activeDecorations } = usePlayerData()
 
 const hasSave = state.phase === 'playing' || state.phase === 'breeding'
 const showExpansionModal = ref(false)
@@ -59,25 +59,48 @@ const handleContinue = () => {
       <div class="glass rounded-3xl p-6 card-shadow animate-pop-in mb-4" style="animation-delay: 0.1s">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="text-5xl">{{ nestLevelEmojis[currentNestConfig.level] }}</div>
+            <div class="relative">
+              <div class="text-5xl">{{ nestLevelEmojis[currentNestConfig.level] }}</div>
+              <div
+                v-if="progress.canUpgrade"
+                class="absolute -top-2 -right-2 w-5 h-5 bg-green-500 text-white text-xs flex items-center justify-center rounded-full animate-bounce-slow"
+              >
+                !
+              </div>
+            </div>
             <div>
               <div class="font-bold text-white text-lg">{{ currentNestConfig.name }}</div>
-              <div class="text-white/60 text-sm">Lv.{{ currentNestConfig.level }} · 累计 {{ playerData.totalScore }} 分</div>
+              <div class="text-white/60 text-sm">
+                Lv.{{ currentNestConfig.level }} · 累计 {{ playerData.totalScore }} 分
+                <span v-if="progress.canUpgrade" class="text-green-300 ml-2">
+                  · 可扩建至 Lv.{{ unlockedNestConfig.level }}
+                </span>
+              </div>
             </div>
           </div>
           <button
-            class="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl
-                   font-bold btn-3d hover:from-amber-400 hover:to-orange-400 flex items-center gap-2"
+            :class="[
+              'px-4 py-2 text-white rounded-xl font-bold btn-3d flex items-center gap-2 transition-all',
+              progress.canUpgrade
+                ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 animate-pulse-slow'
+                : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400',
+            ]"
             @click="showExpansionModal = true"
           >
             <span>🏗️</span>
-            扩建巢穴
+            {{ progress.canUpgrade ? '立即扩建' : '扩建巢穴' }}
           </button>
         </div>
 
-        <div v-if="progress.nextLevel" class="mt-4">
+        <div v-if="progress.canUpgrade" class="mt-4 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl p-3 border border-green-400/40">
+          <div class="text-green-300 text-sm font-medium">
+            ✨ 新巢穴已解锁！点击"立即扩建"提升蛋数上限与事件抗性！
+          </div>
+        </div>
+
+        <div v-else-if="progress.nextLevel" class="mt-4">
           <div class="flex justify-between text-sm mb-2">
-            <span class="text-white/70">下一等级进度</span>
+            <span class="text-white/70">解锁下一扩建资格进度</span>
             <span class="text-amber-300">{{ progressPercent }}%</span>
           </div>
           <div class="h-2 bg-white/10 rounded-full overflow-hidden">
@@ -86,6 +109,9 @@ const handleContinue = () => {
               :style="{ width: `${progressPercent}%` }"
             />
           </div>
+        </div>
+        <div v-else class="mt-4 text-center text-amber-300 text-sm">
+          👑 已解锁全部等级！
         </div>
 
         <div v-if="activeDecorations.length > 0" class="mt-4 flex gap-2 flex-wrap">
@@ -110,7 +136,7 @@ const handleContinue = () => {
           <div class="bg-white/5 rounded-2xl p-4 border border-white/10 hover:bg-white/10 transition-all">
             <div class="text-2xl mb-2">🥚</div>
             <div class="text-white font-bold mb-1">神奇孵化</div>
-            <div class="text-white/60 text-sm">每窝 2~4 颗蛋，每颗独立孵化倒计时，孵化时长影响性格！</div>
+            <div class="text-white/60 text-sm">每窝 {{ currentNestConfig.minEggs }}~{{ currentNestConfig.maxEggs }} 颗蛋，每颗独立孵化倒计时，孵化时长影响性格！</div>
           </div>
 
           <div class="bg-white/5 rounded-2xl p-4 border border-white/10 hover:bg-white/10 transition-all">

@@ -1,5 +1,5 @@
 import { reactive, computed } from 'vue'
-import type { PlayerData, PlayerProgress, NestLevelConfig, GameScore } from '@/types/game'
+import type { PlayerData, PlayerProgress, NestLevelConfig, GameScore, NestLevel } from '@/types/game'
 import { NEST_LEVELS, NEST_DECORATIONS } from '@/utils/constants'
 import { savePlayerData, loadPlayerData, clearPlayerData } from '@/utils/storage'
 
@@ -10,6 +10,7 @@ const createInitialPlayerData = (): PlayerData => ({
   totalHatched: 0,
   totalSurvived: 0,
   currentNestLevel: 1,
+  unlockedNestLevel: 1,
   unlockedDecorations: [],
   activeDecorations: [],
   lastPlayedAt: Date.now(),
@@ -19,60 +20,92 @@ const playerData = reactive<PlayerData>(createInitialPlayerData())
 
 let isInitialized = false
 
+const getLevelByScore = (score: number): NestLevel => {
+  let maxLevel: NestLevel = 1
+  for (const level of NEST_LEVELS) {
+    if (score >= level.requiredTotalScore) {
+      maxLevel = level.level as NestLevel
+    }
+  }
+  return maxLevel
+}
+
+const checkDecorationUnlocks = (): string[] => {
+  const newlyUnlocked: string[] = []
+  Object.values(NEST_DECORATIONS).forEach(decoration => {
+    if (playerData.totalScore >= decoration.requiredScore &&
+        !playerData.unlockedDecorations.includes(decoration.id)) {
+      playerData.unlockedDecorations.push(decoration.id)
+      newlyUnlocked.push(decoration.id)
+    }
+  })
+  return newlyUnlocked
+}
+
+const checkNestLevelUnlock = (): boolean => {
+  const shouldUnlock = getLevelByScore(playerData.totalScore)
+  if (shouldUnlock > playerData.unlockedNestLevel) {
+    playerData.unlockedNestLevel = shouldUnlock
+    return true
+  }
+  return false
+}
+
 const initPlayerData = (): void => {
   if (isInitialized) return
   const saved = loadPlayerData()
   if (saved) {
-    Object.assign(playerData, saved)
+    const initial = createInitialPlayerData()
+    Object.assign(playerData, {
+      ...initial,
+      ...saved,
+      unlockedNestLevel: saved.unlockedNestLevel ?? saved.currentNestLevel ?? 1,
+    })
   }
   isInitialized = true
-  checkUnlocks()
-}
-
-const checkUnlocks = (): void => {
-  Object.values(NEST_DECORATIONS).forEach(decoration => {
-    if (playerData.totalScore >= decoration.requiredScore && 
-        !playerData.unlockedDecorations.includes(decoration.id)) {
-      playerData.unlockedDecorations.push(decoration.id)
-    }
-  })
-
-  let maxLevel = 1
-  for (const level of NEST_LEVELS) {
-    if (playerData.totalScore >= level.requiredTotalScore) {
-      maxLevel = level.level
-    }
-  }
-  playerData.currentNestLevel = maxLevel as 1 | 2 | 3 | 4 | 5
+  checkDecorationUnlocks()
+  checkNestLevelUnlock()
 }
 
 const currentNestConfig = computed<NestLevelConfig>(() => {
   return NEST_LEVELS.find(l => l.level === playerData.currentNestLevel) || NEST_LEVELS[0]
 })
 
+const unlockedNestConfig = computed<NestLevelConfig>(() => {
+  return NEST_LEVELS.find(l => l.level === playerData.unlockedNestLevel) || NEST_LEVELS[0]
+})
+
 const progress = computed<PlayerProgress>(() => {
   const current = currentNestConfig.value
-  const nextIdx = NEST_LEVELS.findIndex(l => l.level === current.level) + 1
+  const unlocked = unlockedNestConfig.value
+
+  const nextIdx = NEST_LEVELS.findIndex(l => l.level === unlocked.level) + 1
   const next = nextIdx < NEST_LEVELS.length ? NEST_LEVELS[nextIdx] : null
 
   if (!next) {
     return {
       currentLevel: current,
+      unlockedLevel: unlocked,
       nextLevel: null,
       progressToNext: 100,
+      canUnlockNext: false,
       canUpgrade: false,
     }
   }
 
-  const currentRequired = current.requiredTotalScore
+  const unlockedRequired = unlocked.requiredTotalScore
   const nextRequired = next.requiredTotalScore
-  const progressToNext = ((playerData.totalScore - currentRequired) / (nextRequired - currentRequired)) * 100
+  const progressToNext = unlockedRequired === nextRequired
+    ? 100
+    : ((playerData.totalScore - unlockedRequired) / (nextRequired - unlockedRequired)) * 100
 
   return {
     currentLevel: current,
+    unlockedLevel: unlocked,
     nextLevel: next,
     progressToNext: Math.min(Math.max(progressToNext, 0), 100),
-    canUpgrade: playerData.totalScore >= nextRequired,
+    canUnlockNext: playerData.totalScore >= nextRequired,
+    canUpgrade: playerData.unlockedNestLevel > playerData.currentNestLevel,
   }
 })
 
@@ -90,9 +123,15 @@ const allDecorations = computed(() => {
   }))
 })
 
-const addGameResult = (score: GameScore, hatched: number, survived: number): { newUnlocks: string[], levelUp: boolean } => {
-  const prevLevel = playerData.currentNestLevel
-  const prevUnlocks = [...playerData.unlockedDecorations]
+interface AddGameResult {
+  newDecorationUnlocks: string[]
+  newNestUnlock: boolean
+  canUpgrade: boolean
+}
+
+const addGameResult = (score: GameScore, hatched: number, survived: number): AddGameResult => {
+  const prevUnlockedLevel = playerData.unlockedNestLevel
+  const prevUnlockedDecos = [...playerData.unlockedDecorations]
 
   playerData.totalScore += score.totalScore
   playerData.gamesPlayed += 1
@@ -101,40 +140,53 @@ const addGameResult = (score: GameScore, hatched: number, survived: number): { n
   playerData.totalSurvived += survived
   playerData.lastPlayedAt = Date.now()
 
-  checkUnlocks()
-
-  const newUnlocks = playerData.unlockedDecorations.filter(id => !prevUnlocks.includes(id))
-  const levelUp = playerData.currentNestLevel > prevLevel
+  const newDecorationUnlocks = checkDecorationUnlocks()
+  const newNestUnlock = checkNestLevelUnlock()
 
   savePlayerData(playerData)
 
-  return { newUnlocks, levelUp }
+  return {
+    newDecorationUnlocks,
+    newNestUnlock,
+    canUpgrade: playerData.unlockedNestLevel > playerData.currentNestLevel,
+  }
 }
 
 const upgradeNest = (): boolean => {
-  if (progress.value.canUpgrade && progress.value.nextLevel) {
-    playerData.currentNestLevel = progress.value.nextLevel.level
+  if (playerData.unlockedNestLevel > playerData.currentNestLevel) {
+    playerData.currentNestLevel = playerData.unlockedNestLevel
     savePlayerData(playerData)
     return true
   }
   return false
 }
 
-const toggleDecoration = (decorationId: string): boolean => {
-  if (!playerData.unlockedDecorations.includes(decorationId)) return false
+interface ToggleResult {
+  success: boolean
+  action: 'added' | 'removed' | 'blocked' | 'locked'
+  message: string
+}
+
+const toggleDecoration = (decorationId: string): ToggleResult => {
+  if (!playerData.unlockedDecorations.includes(decorationId)) {
+    return { success: false, action: 'locked', message: '该装饰尚未解锁' }
+  }
 
   const idx = playerData.activeDecorations.indexOf(decorationId)
+  const decoration = NEST_DECORATIONS[decorationId]
+
   if (idx >= 0) {
     playerData.activeDecorations.splice(idx, 1)
+    savePlayerData(playerData)
+    return { success: true, action: 'removed', message: `已移除 ${decoration?.name || decorationId}` }
   } else {
-    if (playerData.activeDecorations.length < 5) {
-      playerData.activeDecorations.push(decorationId)
-    } else {
-      return false
+    if (playerData.activeDecorations.length >= 5) {
+      return { success: false, action: 'blocked', message: '最多只能展示 5 个装饰' }
     }
+    playerData.activeDecorations.push(decorationId)
+    savePlayerData(playerData)
+    return { success: true, action: 'added', message: `已展示 ${decoration?.name || decorationId}` }
   }
-  savePlayerData(playerData)
-  return true
 }
 
 const resetPlayerData = (): void => {
@@ -159,6 +211,7 @@ export function usePlayerData() {
   return {
     playerData,
     currentNestConfig,
+    unlockedNestConfig,
     progress,
     activeDecorations,
     allDecorations,

@@ -44,6 +44,7 @@ export interface PlayerData {
   totalHatched: number
   totalSurvived: number
   currentNestLevel: NestLevel
+  unlockedNestLevel: NestLevel
   unlockedDecorations: string[]
   activeDecorations: string[]
   lastPlayedAt: number
@@ -51,8 +52,10 @@ export interface PlayerData {
 
 export interface PlayerProgress {
   currentLevel: NestLevelConfig
+  unlockedLevel: NestLevelConfig
   nextLevel: NestLevelConfig | null
   progressToNext: number
+  canUnlockNext: boolean
   canUpgrade: boolean
 }
 

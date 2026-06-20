@@ -475,15 +475,16 @@ const endGame = (_reason: string) => {
 
   if (state.score) {
     const survived = state.birds.filter(b => !b.isDead).length
-    const { newUnlocks, levelUp } = addGameResult(state.score, state.totalHatched, survived)
+    const result = addGameResult(state.score, state.totalHatched, survived)
 
-    if (levelUp) {
-      addEventLog(`🏆 恭喜！巢穴升级了！`, 'success')
+    if (result.newNestUnlock) {
+      addEventLog(`🔓 解锁了新的巢穴扩建资格！去主页确认扩建吧~`, 'success')
     }
-    if (newUnlocks.length > 0) {
-      newUnlocks.forEach(id => {
-        addEventLog(`🎁 解锁了新装饰！`, 'success')
-      })
+    if (result.newDecorationUnlocks.length > 0) {
+      addEventLog(`🎁 解锁了 ${result.newDecorationUnlocks.length} 个新装饰！`, 'success')
+    }
+    if (result.canUpgrade) {
+      addEventLog(`🏗️ 有新的巢穴等待扩建！`, 'info')
     }
   }
 }

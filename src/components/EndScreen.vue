@@ -7,7 +7,7 @@ import NestExpansionModal from './NestExpansionModal.vue'
 
 const router = useRouter()
 const { state, restartGame, returnToStart } = useGameState()
-const { playerData, progress, currentNestConfig } = usePlayerData()
+const { playerData, progress, currentNestConfig, unlockedNestConfig } = usePlayerData()
 
 const showExpansionModal = ref(false)
 
@@ -138,7 +138,10 @@ const handleHome = () => {
               <span class="text-4xl">{{ nestLevelEmojis[currentNestConfig.level] }}</span>
               <div class="text-left">
                 <div class="font-bold text-white">{{ currentNestConfig.name }}</div>
-                <div class="text-white/60 text-sm">Lv.{{ currentNestConfig.level }}</div>
+                <div class="text-white/60 text-sm">当前生效 Lv.{{ currentNestConfig.level }}</div>
+              </div>
+              <div v-if="progress.canUpgrade" class="ml-2 px-2 py-1 bg-green-500/30 text-green-300 text-xs rounded-full border border-green-400/40 animate-pulse">
+                🏗️ 可扩建至 Lv.{{ unlockedNestConfig.level }}
               </div>
             </div>
             <div class="mb-3">
@@ -153,8 +156,11 @@ const handleHome = () => {
                 />
               </div>
             </div>
-            <div v-if="progress.nextLevel" class="text-white/60 text-sm">
-              距离 <span class="text-amber-300 font-bold">{{ progress.nextLevel.name }}</span> 
+            <div v-if="progress.canUpgrade" class="text-green-300 font-bold text-sm mb-2">
+              ✨ 已解锁新巢穴扩建资格！
+            </div>
+            <div v-else-if="progress.nextLevel" class="text-white/60 text-sm">
+              距离解锁 <span class="text-amber-300 font-bold">{{ progress.nextLevel.name }}</span>
               还差 <span class="text-amber-300 font-bold">{{ progress.nextLevel.requiredTotalScore - playerData.totalScore }}</span> 分
             </div>
             <div v-else class="text-amber-300 font-bold text-sm">
@@ -166,7 +172,7 @@ const handleHome = () => {
               @click="showExpansionModal = true"
             >
               <span>🏗️</span>
-              查看巢穴详情
+              {{ progress.canUpgrade ? '立即扩建巢穴' : '查看巢穴详情' }}
             </button>
           </div>
         </div>
