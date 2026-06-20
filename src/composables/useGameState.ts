@@ -11,22 +11,29 @@ import {
 } from '@/utils/constants'
 import { randomInt, randomFloat, clamp, randomChoice, generateId, chance } from '@/utils/random'
 import { saveGame, loadGame, clearSave } from '@/utils/storage'
+import { usePlayerData } from './usePlayerData'
 
-const createInitialState = (): GameState => ({
-  phase: 'start',
-  day: 1,
-  dayProgress: 0,
-  currentWeather: 'sunny',
-  nextWeatherChangeAt: Date.now() + WEATHER_CHANGE_INTERVAL,
-  foodStock: INITIAL_FOOD,
-  birds: [],
-  berries: [],
-  totalHatched: 0,
-  totalDied: 0,
-  breedingCount: 0,
-  maxBreedingRounds: MAX_BREEDING_ROUNDS,
-  eventLog: [],
-})
+const { getNestLimits, addGameResult } = usePlayerData()
+
+const createInitialState = (): GameState => {
+  const nestLimits = getNestLimits()
+  return {
+    phase: 'start',
+    day: 1,
+    dayProgress: 0,
+    currentWeather: 'sunny',
+    nextWeatherChangeAt: Date.now() + WEATHER_CHANGE_INTERVAL,
+    foodStock: INITIAL_FOOD,
+    birds: [],
+    berries: [],
+    totalHatched: 0,
+    totalDied: 0,
+    breedingCount: 0,
+    maxBreedingRounds: nestLimits.maxBreedingRounds,
+    eventLog: [],
+    nestEventBonus: nestLimits.eventBonus,
+  }
+}
 
 const state = reactive<GameState>(createInitialState())
 
@@ -95,7 +102,8 @@ const startGame = () => {
   state.phase = 'playing'
   clearSave()
 
-  const eggCount = randomInt(MIN_EGGS, MAX_EGGS)
+  const nestLimits = getNestLimits()
+  const eggCount = randomInt(nestLimits.minEggs, nestLimits.maxEggs)
   for (let i = 0; i < eggCount; i++) {
     state.birds.push(createEgg(i))
   }
@@ -198,9 +206,13 @@ const updateBird = (bird: Bird, deltaMs: number, weatherEffect: ReturnType<typeo
     bird.fear = clamp(bird.fear - FEAR_DECAY_RATE * weatherEffect.fearMod * (deltaMs / 1000), ATTR_MIN, ATTR_MAX)
   }
 
+  const eventBonus = state.nestEventBonus || 0
+  const eventProtection = 1 - eventBonus / 100
+
   if (weatherEffect.awayChance && !bird.isAway && bird.stage !== 'chick') {
     const personalityMod = bird.personality === 'bold' ? 0.3 : bird.personality === 'shy' ? 1.5 : 1
-    if (chance(weatherEffect.awayChance * personalityMod * (deltaMs / 10000))) {
+    const finalChance = weatherEffect.awayChance * personalityMod * eventProtection * (deltaMs / 10000)
+    if (chance(finalChance)) {
       bird.isAway = true
       bird.awayUntil = Date.now() + randomInt(8000, 20000)
       addEventLog(`💨 ${bird.name} 被天气吓跑，暂时离巢了...`, 'warning')
@@ -209,7 +221,8 @@ const updateBird = (bird: Bird, deltaMs: number, weatherEffect: ReturnType<typeo
 
   if (weatherEffect.sickChance && !bird.isSick && !bird.isAway) {
     const personalityMod = bird.personality === 'stubborn' ? 0.7 : bird.personality === 'gentle' ? 1.3 : 1
-    if (chance(weatherEffect.sickChance * personalityMod * (deltaMs / 10000))) {
+    const finalChance = weatherEffect.sickChance * personalityMod * eventProtection * (deltaMs / 10000)
+    if (chance(finalChance)) {
       bird.isSick = true
       bird.sickUntil = Date.now() + randomInt(10000, 25000)
       addEventLog(`🤒 ${bird.name} 生病了，需要好好照顾！`, 'warning')
@@ -392,7 +405,8 @@ const keepAndBreed = () => {
     b.hunger = clamp(b.hunger - randomInt(10, 20), ATTR_MIN, ATTR_MAX)
   })
 
-  const newEggCount = randomInt(MIN_EGGS, MAX_EGGS)
+  const nestLimits = getNestLimits()
+  const newEggCount = randomInt(nestLimits.minEggs, nestLimits.maxEggs)
   for (let i = 0; i < newEggCount; i++) {
     state.birds.push(createEgg(state.birds.length))
   }
@@ -458,6 +472,20 @@ const endGame = (_reason: string) => {
   state.score = calculateScore()
   addEventLog('🎮 游戏结束', 'info')
   saveGame(state)
+
+  if (state.score) {
+    const survived = state.birds.filter(b => !b.isDead).length
+    const { newUnlocks, levelUp } = addGameResult(state.score, state.totalHatched, survived)
+
+    if (levelUp) {
+      addEventLog(`🏆 恭喜！巢穴升级了！`, 'success')
+    }
+    if (newUnlocks.length > 0) {
+      newUnlocks.forEach(id => {
+        addEventLog(`🎁 解锁了新装饰！`, 'success')
+      })
+    }
+  }
 }
 
 const restartGame = () => {

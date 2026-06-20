@@ -4,6 +4,7 @@ import type { Bird, Berry } from '@/types/game'
 import BirdSprite from './BirdSprite.vue'
 import BerryItem from './BerryItem.vue'
 import { STAGE_NAMES } from '@/utils/constants'
+import { usePlayerData } from '@/composables/usePlayerData'
 
 const props = defineProps<{
   birds: Bird[]
@@ -16,11 +17,15 @@ const emit = defineEmits<{
   (e: 'collectBerry', id: string): void
 }>()
 
+const { activeDecorations, currentNestConfig } = usePlayerData()
+
 const displayBirds = computed(() => {
   return props.birds.map((bird, idx, arr) => {
     const total = arr.length
     const angle = (idx / Math.max(total, 1)) * Math.PI * 0.6 - Math.PI * 0.3
-    const radius = total > 3 ? 70 : total > 2 ? 55 : 40
+    const baseRadius = total > 6 ? 80 : total > 3 ? 70 : total > 2 ? 55 : 40
+    const levelBonus = (currentNestConfig.value.level - 1) * 5
+    const radius = baseRadius + levelBonus
     const x = 50 + Math.sin(angle) * radius
     const y = 58 + Math.cos(angle) * 20 - (bird.stage === 'adult' ? 5 : 0)
     return { bird, x, y, idx }
@@ -71,6 +76,21 @@ const displayBirds = computed(() => {
     </div>
 
     <div class="relative w-[85%] max-w-lg aspect-[4/3] z-10">
+      <div
+        v-for="dec in activeDecorations"
+        :key="dec.id"
+        class="absolute pointer-events-none animate-float"
+        :style="{
+          left: `${dec.x}%`,
+          top: `${dec.y}%`,
+          transform: `translate(-50%, -50%) scale(${dec.scale})`,
+          animationDelay: `${Math.random() * 2}s`
+        }"
+        :title="dec.name"
+      >
+        <span class="text-4xl drop-shadow-lg">{{ dec.emoji }}</span>
+      </div>
+
       <div class="absolute inset-0 flex items-end justify-center">
         <svg viewBox="0 0 300 180" class="w-full h-full nest-shadow">
           <defs>

@@ -1,12 +1,26 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { onMounted } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useGameState } from '@/composables/useGameState'
+import { usePlayerData } from '@/composables/usePlayerData'
+import NestExpansionModal from './NestExpansionModal.vue'
 
 const router = useRouter()
 const { startGame, tryLoadGame, state } = useGameState()
+const { currentNestConfig, progress, playerData, activeDecorations } = usePlayerData()
 
 const hasSave = state.phase === 'playing' || state.phase === 'breeding'
+const showExpansionModal = ref(false)
+
+const progressPercent = computed(() => Math.round(progress.value.progressToNext))
+
+const nestLevelEmojis: Record<number, string> = {
+  1: '🌿',
+  2: '🌻',
+  3: '🏡',
+  4: '🏰',
+  5: '👑',
+}
 
 onMounted(() => {
   tryLoadGame()
@@ -40,6 +54,51 @@ const handleContinue = () => {
           虚拟鸟巢
         </h1>
         <p class="text-forest-light/90 text-xl font-medium">超休闲·养成小游戏</p>
+      </div>
+
+      <div class="glass rounded-3xl p-6 card-shadow animate-pop-in mb-4" style="animation-delay: 0.1s">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="text-5xl">{{ nestLevelEmojis[currentNestConfig.level] }}</div>
+            <div>
+              <div class="font-bold text-white text-lg">{{ currentNestConfig.name }}</div>
+              <div class="text-white/60 text-sm">Lv.{{ currentNestConfig.level }} · 累计 {{ playerData.totalScore }} 分</div>
+            </div>
+          </div>
+          <button
+            class="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl
+                   font-bold btn-3d hover:from-amber-400 hover:to-orange-400 flex items-center gap-2"
+            @click="showExpansionModal = true"
+          >
+            <span>🏗️</span>
+            扩建巢穴
+          </button>
+        </div>
+
+        <div v-if="progress.nextLevel" class="mt-4">
+          <div class="flex justify-between text-sm mb-2">
+            <span class="text-white/70">下一等级进度</span>
+            <span class="text-amber-300">{{ progressPercent }}%</span>
+          </div>
+          <div class="h-2 bg-white/10 rounded-full overflow-hidden">
+            <div
+              class="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"
+              :style="{ width: `${progressPercent}%` }"
+            />
+          </div>
+        </div>
+
+        <div v-if="activeDecorations.length > 0" class="mt-4 flex gap-2 flex-wrap">
+          <span class="text-white/50 text-sm">当前装饰：</span>
+          <span
+            v-for="dec in activeDecorations"
+            :key="dec.id"
+            class="text-2xl"
+            :title="dec.name"
+          >
+            {{ dec.emoji }}
+          </span>
+        </div>
       </div>
 
       <div class="glass rounded-3xl p-8 card-shadow animate-pop-in" style="animation-delay: 0.15s">
@@ -111,5 +170,10 @@ const handleContinue = () => {
         </div>
       </div>
     </div>
+
+    <NestExpansionModal
+      v-if="showExpansionModal"
+      @close="showExpansionModal = false"
+    />
   </div>
 </template>

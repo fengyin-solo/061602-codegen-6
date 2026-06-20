@@ -8,6 +8,54 @@ export type BerryType = 'red' | 'blue' | 'golden'
 
 export type GamePhase = 'start' | 'playing' | 'breeding' | 'ended'
 
+export type DecorationType = 'flower' | 'lantern' | 'feather' | 'ribbon' | 'crystal' | 'mushroom'
+
+export type NestLevel = 1 | 2 | 3 | 4 | 5
+
+export interface NestDecoration {
+  id: string
+  type: DecorationType
+  name: string
+  emoji: string
+  x: number
+  y: number
+  scale: number
+  unlocked: boolean
+  requiredScore: number
+}
+
+export interface NestLevelConfig {
+  level: NestLevel
+  name: string
+  description: string
+  requiredTotalScore: number
+  minEggs: number
+  maxEggs: number
+  maxBreedingRounds: number
+  eventBonus: number
+  decorations: string[]
+  bgGradient: string
+}
+
+export interface PlayerData {
+  totalScore: number
+  gamesPlayed: number
+  bestScore: number
+  totalHatched: number
+  totalSurvived: number
+  currentNestLevel: NestLevel
+  unlockedDecorations: string[]
+  activeDecorations: string[]
+  lastPlayedAt: number
+}
+
+export interface PlayerProgress {
+  currentLevel: NestLevelConfig
+  nextLevel: NestLevelConfig | null
+  progressToNext: number
+  canUpgrade: boolean
+}
+
 export interface Bird {
   id: string
   name: string
@@ -56,6 +104,7 @@ export interface GameState {
   eventLog: { id: string; message: string; type: string; timestamp: number }[]
   score?: GameScore
   selectedBirdId?: string
+  nestEventBonus?: number
 }
 
 export interface GameScore {

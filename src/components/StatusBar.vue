@@ -2,10 +2,21 @@
 import { computed } from 'vue'
 import type { GameState } from '@/types/game'
 import { WEATHER_NAMES } from '@/utils/constants'
+import { usePlayerData } from '@/composables/usePlayerData'
 
 const props = defineProps<{
   state: GameState
 }>()
+
+const { currentNestConfig } = usePlayerData()
+
+const nestLevelEmojis: Record<number, string> = {
+  1: '🌿',
+  2: '🌻',
+  3: '🏡',
+  4: '🏰',
+  5: '👑',
+}
 
 const weatherClass = computed(() => {
   switch (props.state.currentWeather) {
@@ -37,6 +48,14 @@ const weatherClass = computed(() => {
             :style="{ width: `${state.dayProgress * 100}%` }"
           />
         </div>
+      </div>
+
+      <div class="flex items-center gap-2 bg-gradient-to-r from-amber-500/30 to-orange-500/30 px-3 py-1.5 rounded-xl border border-amber-400/30">
+        <span class="text-lg">{{ nestLevelEmojis[currentNestConfig.level] }}</span>
+        <span class="text-amber-200 font-medium text-sm">Lv.{{ currentNestConfig.level }}</span>
+        <span v-if="state.nestEventBonus && state.nestEventBonus > 0" class="text-green-300 text-xs">
+          +{{ state.nestEventBonus }}%
+        </span>
       </div>
     </div>
 

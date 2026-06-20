@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameState } from '@/composables/useGameState'
+import { usePlayerData } from '@/composables/usePlayerData'
+import NestExpansionModal from './NestExpansionModal.vue'
 
 const router = useRouter()
 const { state, restartGame, returnToStart } = useGameState()
+const { playerData, progress, currentNestConfig } = usePlayerData()
+
+const showExpansionModal = ref(false)
 
 onMounted(() => {
   if (state.phase !== 'ended' && !state.score) {
@@ -18,6 +23,20 @@ const starArray = computed(() => {
   const s = score.value?.stars ?? 1
   return Array.from({ length: 5 }, (_, i) => i < s)
 })
+
+const previousTotalScore = computed(() => {
+  return playerData.totalScore - (score.value?.totalScore || 0)
+})
+
+const progressPercent = computed(() => Math.round(progress.value.progressToNext))
+
+const nestLevelEmojis: Record<number, string> = {
+  1: '🌿',
+  2: '🌻',
+  3: '🏡',
+  4: '🏰',
+  5: '👑',
+}
 
 const handleRestart = () => {
   restartGame()
@@ -93,7 +112,7 @@ const handleHome = () => {
           </div>
         </div>
 
-        <div class="bg-gradient-to-r from-amber-500/10 to-rose-500/10 rounded-2xl p-5 mb-6 border border-amber-400/20">
+        <div class="bg-gradient-to-r from-amber-500/10 to-rose-500/10 rounded-2xl p-5 mb-4 border border-amber-400/20">
           <div class="text-center">
             <div class="text-white/80 mb-3 flex items-center justify-center gap-2">
               <span>📊</span>
@@ -106,6 +125,49 @@ const handleHome = () => {
               <span>💝 繁殖 {{ state.breedingCount }} 窝</span>
               <span>🐦 存活 {{ state.birds.filter(b => !b.isDead).length }} 只</span>
             </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-2xl p-5 mb-6 border border-green-400/20">
+          <div class="text-center">
+            <div class="text-white/80 mb-3 flex items-center justify-center gap-2">
+              <span>🏆</span>
+              <span class="font-medium">累计进度</span>
+            </div>
+            <div class="flex items-center justify-center gap-3 mb-4">
+              <span class="text-4xl">{{ nestLevelEmojis[currentNestConfig.level] }}</span>
+              <div class="text-left">
+                <div class="font-bold text-white">{{ currentNestConfig.name }}</div>
+                <div class="text-white/60 text-sm">Lv.{{ currentNestConfig.level }}</div>
+              </div>
+            </div>
+            <div class="mb-3">
+              <div class="flex justify-between text-sm mb-2">
+                <span class="text-white/70">本次获得 +{{ score?.totalScore || 0 }} 分</span>
+                <span class="text-green-300">{{ previousTotalScore }} → {{ playerData.totalScore }}</span>
+              </div>
+              <div class="h-3 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  class="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full transition-all duration-1000"
+                  :style="{ width: `${progressPercent}%` }"
+                />
+              </div>
+            </div>
+            <div v-if="progress.nextLevel" class="text-white/60 text-sm">
+              距离 <span class="text-amber-300 font-bold">{{ progress.nextLevel.name }}</span> 
+              还差 <span class="text-amber-300 font-bold">{{ progress.nextLevel.requiredTotalScore - playerData.totalScore }}</span> 分
+            </div>
+            <div v-else class="text-amber-300 font-bold text-sm">
+              🎉 已达到最高等级！
+            </div>
+            <button
+              class="mt-4 px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl
+                     font-bold text-sm btn-3d hover:from-amber-400 hover:to-orange-400 flex items-center gap-2 mx-auto"
+              @click="showExpansionModal = true"
+            >
+              <span>🏗️</span>
+              查看巢穴详情
+            </button>
           </div>
         </div>
 
@@ -147,5 +209,10 @@ const handleHome = () => {
         🌸 感谢游玩！希望你和小鸟们都收获了快乐~
       </div>
     </div>
+
+    <NestExpansionModal
+      v-if="showExpansionModal"
+      @close="showExpansionModal = false"
+    />
   </div>
 </template>

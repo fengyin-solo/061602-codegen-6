@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { watch, onMounted } from 'vue'
+import { watch, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameState } from '@/composables/useGameState'
+import { usePlayerData } from '@/composables/usePlayerData'
 import StatusBar from './StatusBar.vue'
 import NestScene from './NestScene.vue'
 import WeatherOverlay from './WeatherOverlay.vue'
@@ -10,6 +11,11 @@ import EventModal from './EventModal.vue'
 import { WEATHER_COLORS } from '@/utils/constants'
 
 const router = useRouter()
+const { currentNestConfig } = usePlayerData()
+
+const bgGradient = computed(() => {
+  return currentNestConfig.value.bgGradient
+})
 const {
   state, allAdults, aliveCount,
   collectBerry, feedBird, calmBird, buryBird,
@@ -47,7 +53,7 @@ const handleCollect = (id: string) => {
 
 <template>
   <div
-    class="w-full h-full bg-gradient-to-br from-forest-dark via-forest to-forest-light relative overflow-hidden"
+    :class="['w-full h-full bg-gradient-to-br relative overflow-hidden', bgGradient]"
   >
     <div
       :class="['absolute inset-0 transition-colors duration-1000 bg-gradient-to-b', WEATHER_COLORS[state.currentWeather]]"
